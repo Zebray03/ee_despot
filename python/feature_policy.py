@@ -42,11 +42,11 @@ with open('../config/encoder_config.json', 'r') as f:
 
 belief_dim = config['belief_dim']
 feature_dim = config['feature_dim']
-actions_num = config['actions_num']
+action_num = config['action_num']
 
 # 初始化模型
 encoder = BeliefEncoder(belief_dim, feature_dim)
-scorer = ActionScorer(feature_dim, actions_num)
+scorer = ActionScorer(feature_dim, action_num)
 optimizer = optim.Adam(list(encoder.parameters()) + list(scorer.parameters()), lr=1e-3)
 criterion = nn.CrossEntropyLoss()
 
@@ -95,3 +95,4 @@ def load_models(prefix):
 Main.extract_features = extract_features
 Main.score_actions = score_actions
 Main.train_step = train_step
+Main.save_models = save_models

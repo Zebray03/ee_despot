@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -6,9 +7,9 @@ from .data import prepare_dataloader
 from .config import load_config, get_model_path
 
 
-def train_step(features, labels, encoder, scorer, optimizer, criterion):
+def train_step(features, labels, encoder, scorer, optimizer, criterion, batch_size):
     """执行一个训练步骤"""
-    dataloader = prepare_dataloader(features, labels)
+    dataloader = prepare_dataloader(features, labels, batch_size=batch_size)
 
     encoder.train()
     scorer.train()
@@ -68,7 +69,7 @@ def train_model(epochs=100, batch_size=32):
             labels_np = np.array(labels)
 
         # 训练一步
-        loss = train_step(features_np, labels_np, encoder, scorer, optimizer, criterion)
+        loss = train_step(features_np, labels_np, encoder, scorer, optimizer, criterion, batch_size)
         print(f"Epoch {epoch + 1}/{epochs}, Loss: {loss:.4f}")
 
     # 保存模型

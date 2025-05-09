@@ -20,4 +20,4 @@ def get_julia_code_path(script_name="ARDESPOT_Optimized_RockSample_train.jl"):
 
 def get_model_path(model_name="trained_policy"):
     """获取模型保存路径"""
-    return os.path.join(PROJECT_ROOT, "models", model_name)
+    return os.path.join(PROJECT_ROOT, "model", model_name)

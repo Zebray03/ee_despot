@@ -56,12 +56,12 @@ end
 # ========================
 # 数据收集与训练功能
 # ========================
-function collect_expert_data(pomdp::RockSamplePOMDP; num_episodes=100, max_steps=100)
+function collect_expert_data(pomdp::RockSamplePOMDP; num_episodes=10, max_steps=10)
     expert_data = []
     default_solver = DESPOTSolver(
         bounds = IndependentBounds(-100.0, 20.0, check_terminal=true),
         K = 500,
-        max_trials = 10_000
+        max_trials = 10
     )
     expert_planner = solve(default_solver, pomdp)
 
@@ -98,7 +98,7 @@ function prepare_training_data(expert_data)
     for episode in expert_data
         for (bvec, aidx) in episode
             push!(features, bvec)
-            push!(labels, aidx)
+            push!(labels, aidx - 1)
         end
     end
     (features = hcat(features...)', labels = labels)
@@ -116,9 +116,13 @@ function run_training(;epochs=100, batch_size=32)
     expert_data = collect_expert_data(pomdp, num_episodes=100)
     training_data = prepare_training_data(expert_data)
 
-    # 传输到Python
-    Main.features_train = training_data.features
-    Main.labels_train = training_data.labels
+    @info "Done"
+
+    @eval Main begin
+        # 传输到Python
+        global features_train = $training_data.features
+        global labels_train = $training_data.labels
+    end
 
     # 执行训练
     @info "Starting training..."
@@ -146,7 +150,7 @@ function run_optimized_ardespot(;max_steps=100)
         default_action = FeatureDrivenPolicy(pomdp),
         K = 500,
         rng = MersenneTwister(89757),
-        max_trials = 10_000
+        max_trials = 10
     )
 
     planner = solve(solver, pomdp)
