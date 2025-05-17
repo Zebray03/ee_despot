@@ -1,7 +1,5 @@
 import sys
 
-import torch
-
 sys.path.append("..")
 from python.julia_integration import init_julia
 from python.trainer import train_model
