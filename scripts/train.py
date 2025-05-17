@@ -1,24 +1,20 @@
 import sys
 
-sys.path.append("..")  # 添加项目根目录到路径
+import torch
 
+sys.path.append("..")
 from python.julia_integration import init_julia
 from python.trainer import train_model
-from python.feature_policy import extract_features, score_actions, train_step, save_models
+
+problem = 'RockSample'
 
 
-def main():
-    # 初始化Julia环境
-    Main = init_julia()
-
-    # 调用Julia训练函数
-    Main.eval("ARDESPOT_Optimized.run_training(epochs=100)")
-
-    print("Done")
-
-    # 训练模型
-    train_model(epochs=200)
+def train():
+    Main = init_julia(mode='train', problem=problem)
+    Main.eval("ARDESPOT_Train.run_training()")
+    train_model(epochs=10000, batch_size=32, problem=problem)
+    print("Training completed. Models saved.")
 
 
 if __name__ == "__main__":
-    main()
+    train()

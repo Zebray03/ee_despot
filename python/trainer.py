@@ -1,41 +1,53 @@
+import os
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from .model import create_models, save_models
-from .data import prepare_dataloader
+
 from .config import load_config, get_model_path
+from .data import prepare_dataloader
+from .model import create_models, save_models
 
 
 def train_step(features, labels, encoder, scorer, optimizer, criterion, batch_size):
-    """执行一个训练步骤"""
     dataloader = prepare_dataloader(features, labels, batch_size=batch_size)
-
     encoder.train()
     scorer.train()
-
     total_loss = 0.0
-    for batch_features, batch_labels in dataloader:
+
+    for batch_idx, (batch_features, batch_labels) in enumerate(dataloader):
         optimizer.zero_grad()
 
-        # 前向传播
         features = encoder(batch_features)
         scores = scorer(features)
 
-        # 计算损失
-        loss = criterion(scores, batch_labels)
+        with torch.no_grad():
+            probs = torch.softmax(scores, dim=1)
+            pred_dist = probs.mean(dim=0).numpy()
 
-        # 反向传播
+        unique, counts = torch.unique(batch_labels, return_counts=True)
+        true_dist = np.zeros(load_config()["action_num"])
+        for u, c in zip(unique, counts):
+            true_dist[u] = c.item() / len(batch_labels)
+
+        if batch_idx < 3:
+            print(f"\nBatch {batch_idx + 1} 预测分布:")
+            print(np.round(pred_dist, 3))
+            print("真实分布:")
+            print(np.round(true_dist, 3))
+
+        loss = criterion(scores, batch_labels)
         loss.backward()
         optimizer.step()
-
         total_loss += loss.item()
 
-    return total_loss / len(dataloader)
+    avg_loss = total_loss / len(dataloader)
+    print(f"\nEpoch平均损失: {avg_loss:.4f}")
+    return avg_loss
 
 
-def train_model(epochs=100, batch_size=32):
-    """训练模型主函数"""
+def train_model(epochs, batch_size, problem, patience=10):
     config = load_config()
 
     # 创建模型
@@ -46,39 +58,41 @@ def train_model(epochs=100, batch_size=32):
         config["action_num"]
     )
 
-    # 定义损失函数和优化器
+    from julia import Main
+    features = np.array(Main.features_train)
+    labels = np.array(Main.labels_train)
+
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(list(encoder.parameters()) + list(scorer.parameters()), lr=0.001)
+    optimizer = optim.Adam(list(encoder.parameters()) + list(scorer.parameters()), lr=1e-4)
 
-    # 训练循环
+    loss_history = []
+    best_loss = float('inf')
+    best_epoch = 0
+
     for epoch in range(epochs):
-        # 从Julia获取数据（这里假设数据已经通过Main.features_train和Main.labels_train传递）
-        from julia import Main
-        features = Main.features_train
-        labels = Main.labels_train
-
-        # 转换为NumPy数组
-        if isinstance(features, np.ndarray):
-            features_np = features
-        else:
-            features_np = np.array(features)
-
-        if isinstance(labels, np.ndarray):
-            labels_np = labels
-        else:
-            labels_np = np.array(labels)
-
-        # 训练一步
-        loss = train_step(features_np, labels_np, encoder, scorer, optimizer, criterion, batch_size)
+        loss = train_step(features, labels, encoder, scorer, optimizer, criterion, batch_size)
         print(f"Epoch {epoch + 1}/{epochs}, Loss: {loss:.4f}")
 
-    # 保存模型
-    model_path = get_model_path()
-    save_models(encoder, scorer, model_path)
+        loss_history.append(loss)
+        if len(loss_history) > patience:
+            loss_history.pop(0)
 
-    # 导出到Julia
-    from julia import Main
-    Main.extract_features = lambda x: encoder(torch.tensor(x, dtype=torch.float32)).detach().numpy()
-    Main.score_actions = lambda x: scorer(torch.tensor(x, dtype=torch.float32)).detach().numpy()
+        if loss < best_loss:
+            best_loss = loss
+            best_epoch = epoch
+
+        # 早停
+        if len(loss_history) >= patience:
+            min_loss = min(loss_history)
+            max_loss = max(loss_history)
+            if (max_loss - min_loss) / min_loss <= 1e-2:
+                print(f"Early stopping at epoch {epoch + 1}. Loss variation within 10% in {patience} epochs.")
+                print(f"Best loss: {best_loss:.4f}")
+                print(f"Best epoch: {best_epoch + 1}")
+                break
+
+    model_path = get_model_path(subdir=problem)
+    os.makedirs(os.path.dirname(model_path), exist_ok=True)  # 确保目录存在
+    save_models(encoder, scorer, model_path)
 
     return encoder, scorer
