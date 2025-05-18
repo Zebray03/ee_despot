@@ -3,12 +3,7 @@
 encoder_config.json
 
 ```json
-{
-    "belief_dim":2,
-    "hidden_dim":64,
-    "action_num":3,
-    "feature_dim":128
-}
+{"map_size":[5,5],"belief_dim":5,"hidden_dim": 64,"feature_dim":128,"action_num":8}
 ```
 
 ## julia/
